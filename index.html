@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Memory Match Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f0f0f5;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    h1 { color: #333; }
+    .menu { margin-bottom: 20px; }
+    select, button {
+      padding: 10px;
+      margin: 5px;
+      font-size: 16px;
+    }
+    .stats { margin: 10px 0; font-size: 18px; }
+    .game-board {
+      display: grid;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .card {
+      width: 80px;
+      height: 80px;
+      background: #d0d4ff;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .card img {
+      max-width: 70%;
+      max-height: 70%;
+      display: none;
+    }
+    .card.flipped img { display: block; }
+    #message { margin-top: 20px; font-size: 20px; color: green; }
+    #leaderboard { margin-top: 30px; text-align: center; }
+    #leaderboard table {
+      margin: auto;
+      border-collapse: collapse;
+    }
+    #leaderboard th, #leaderboard td {
+      border: 1px solid #ccc;
+      padding: 8px 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>💪 Programming Memory Match</h1>
+  <div class="menu">
+    <label for="difficulty">Difficulty:</label>
+    <select id="difficulty">
+      <option value="easy">Easy (8 pairs)</option>
+      <option value="medium">Medium (12 pairs)</option>
+      <option value="hard" selected>Hard (16 pairs)</option>
+    </select>
+    <button onclick="startGame()">Start Game</button>
+  </div>
+  <div class="stats">
+    Player: <span id="playerName"></span> | Time: <span id="timer">0</span>s | Attempts: <span id="attempts">0</span>
+  </div>
+  <div class="game-board" id="board"></div>
+  <p id="message"></p>
+  <div id="leaderboard"></div>
+
+  <script>
+    const allIcons = [
+      'python','java','c','cpp','html','css','js','react',
+      'r','tableau','powerbi','sql','swift','go','php'
+    ];
+
+    let board = document.getElementById('board');
+    let timerEl = document.getElementById('timer');
+    let attemptsEl = document.getElementById('attempts');
+    let leaderboardEl = document.getElementById('leaderboard');
+    let messageEl = document.getElementById('message');
+    let flipped = [], matched = [], attempts = 0, timer = 0, interval, gameStarted = false;
+    let difficulty = 'hard';
+    let player = prompt("Enter your name:") || "Player";
+    document.getElementById("playerName").innerText = player;
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    function getPairs(level) {
+      let pairs = level === 'easy' ? 8 : level === 'medium' ? 12 : 16;
+      return allIcons.slice(0, pairs);
+    }
+
+    function startGame() {
+      clearInterval(interval);
+      difficulty = document.getElementById('difficulty').value;
+      const selectedIcons = getPairs(difficulty);
+      const cards = [...selectedIcons, ...selectedIcons];
+      shuffle(cards);
+
+      board.innerHTML = '';
+      flipped = [];
+      matched = [];
+      attempts = 0;
+      timer = 0;
+      gameStarted = false;
+      attemptsEl.textContent = attempts;
+      timerEl.textContent = timer;
+      messageEl.textContent = '';
+      leaderboardEl.innerHTML = '';
+
+      board.style.gridTemplateColumns = `repeat(${Math.ceil(Math.sqrt(cards.length))}, 80px)`;
+
+      cards.forEach((icon, index) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.dataset.icon = icon;
+        card.dataset.index = index;
+
+        const img = document.createElement('img');
+        img.src = `images/${icon}.png`;
+        img.alt = icon;
+        card.appendChild(img);
+
+        card.onclick = () => flipCard(card);
+        board.appendChild(card);
+      });
+    }
+
+    function flipCard(card) {
+      if (!gameStarted) {
+        interval = setInterval(() => {
+          timer++;
+          timerEl.textContent = timer;
+        }, 1000);
+        gameStarted = true;
+      }
+
+      const index = card.dataset.index;
+      if (flipped.includes(index) || matched.includes(index) || flipped.length === 2) return;
+
+      card.classList.add('flipped');
+      flipped.push(index);
+
+      if (flipped.length === 2) {
+        attempts++;
+        attemptsEl.textContent = attempts;
+        const [i1, i2] = flipped;
+        const c1 = board.children[i1];
+        const c2 = board.children[i2];
+
+        if (c1.dataset.icon === c2.dataset.icon) {
+          matched.push(i1, i2);
+          flipped = [];
+          if (matched.length === board.children.length) {
+            clearInterval(interval);
+            showWin();
+          }
+        } else {
+          setTimeout(() => {
+            c1.classList.remove('flipped');
+            c2.classList.remove('flipped');
+            flipped = [];
+          }, 800);
+        }
+      }
+    }
+
+    function showWin() {
+      const score = Math.max(0, 1000 - (attempts * 10 + timer));
+      messageEl.textContent = `✨ ${player} wins! Score: ${score}`;
+      saveScore(player, score, attempts, timer);
+      showLeaderboard();
+    }
+
+    function saveScore(name, score, attempts, time) {
+      const key = `leaderboard-${difficulty}`;
+      let scores = JSON.parse(localStorage.getItem(key)) || [];
+      scores.push({ name, score, attempts, time });
+      scores.sort((a, b) => b.score - a.score);
+      scores = scores.slice(0, 5);
+      localStorage.setItem(key, JSON.stringify(scores));
+    }
+
+    function showLeaderboard() {
+      const key = `leaderboard-${difficulty}`;
+      const scores = JSON.parse(localStorage.getItem(key)) || [];
+      leaderboardEl.innerHTML = `<h2>🏆 Top 5 - ${difficulty.toUpperCase()}</h2>`;
+      if (scores.length === 0) return;
+      const table = document.createElement('table');
+      table.innerHTML = `<tr><th>Player</th><th>Score</th><th>Attempts</th><th>Time(s)</th></tr>`;
+      scores.forEach(s => {
+        const row = `<tr><td>${s.name}</td><td>${s.score}</td><td>${s.attempts}</td><td>${s.time}</td></tr>`;
+        table.innerHTML += row;
+      });
+      leaderboardEl.appendChild(table);
+    }
+
+    startGame();
+  </script>
+</body>
+</html>
